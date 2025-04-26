@@ -19,36 +19,38 @@ binfile_ptr = 0
 with open(binfile_name, 'rb') as file:
     binfile = file.read()
 
+# Fixed message
 long = bytearray()
-for i in range(0, 110):
+for i in range(0, 108):
     long.append(65)
 long.append(66)
 
-n = 0x1234
-
-#usb.write("ping\r".encode("utf-8"))
-#cmd = "send " + binary_to_hex("BRUCE".encode("utf-8")) + "\r"
-
 state = 1
 c = 0
+last_send_ms = 0
 
 while True:
     if usb.is_open:
 
         # Handle any outbound things we need
         if state == 1:
+            print("Checking status")
             cmd = "getstatus\r"
             usb.write(cmd.encode("utf-8"))
             state = 2
         elif state == 3:
-            #print("Sending")
+            print("Sending data")
             c = c + 1
-            n = c
             long2 = bytearray()
-            long2.extend(n.to_bytes(1, byteorder='little'))
+            n = 1
+            long2.extend(n.to_bytes(2, byteorder='little'))
+            n = c
+            long2.extend(n.to_bytes(2, byteorder='little'))
             long2.extend(long)
             cmd = "send " + binary_to_hex(long2) + "\r"
             usb.write(cmd.encode("utf-8"))
+            last_send_ms = time.time() * 1000
+
             state = 4
 
         # Handle any inbound things
@@ -56,17 +58,26 @@ while True:
             # Line-oriented interface
             rec_data = usb.readline().decode("utf-8").strip()
             print("Got", rec_data)
+
             if rec_data == "status y":
                 if state == 2:
                     state = 3
             elif rec_data == "status n":
                 if state == 2:
-                    time.sleep(0.1)
+                    time.sleep(0.01)
                     state = 1
             elif rec_data == "ok":
                 if state == 4:
+                    state = 5
+            elif rec_data.startswith("receive"):                
+                if state == 5:
                     state = 1
 
-
+        # Handle timeer-based events
+        if state == 5:
+            now = time.time() * 1000
+            if now - last_send_ms > 1000:
+                print("Response timeout")
+                state = 1
 
 

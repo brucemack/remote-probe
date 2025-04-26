@@ -249,7 +249,8 @@ int main(int, const char**) {
 
     PicoClock clock;
     PicoPollTimer radio_poll;
-    radio_poll.setIntervalUs(50 * 1000);
+    // Fast poll every 1ms
+    radio_poll.setIntervalUs(1000);
     Log log;
 
     log.info("Remote Probe (Local Node)");
