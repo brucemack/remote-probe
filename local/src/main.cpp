@@ -116,8 +116,6 @@ void process_cmd(const char* cmd_line, SX1276Driver& radio) {
         if (token_ptr > 0)
             tokens[token++][token_ptr] = 0;
 
-    //printf("\n[%s] [%s] [%s] [%s]\n", tokens[0], tokens[1], tokens[2], tokens[3]);
-
     if (strcmp(tokens[0], "@send") == 0) {
         uint8_t data[LARGEST_PAYLOAD];
         unsigned int data_len = convert_ascii_to_bin(tokens[1], data, LARGEST_PAYLOAD);
@@ -267,8 +265,8 @@ int main(int, const char**) {
         // TEMP
 
         if (radio_1.popReceiveIfNotEmpty(0, buf, &buf_len)) {
-            log.info("Radio 1 got %d", buf_len);
-            prettyHexDump(buf, buf_len, std::cout);
+            //log.info("Radio 1 got %d", buf_len);
+            //prettyHexDump(buf, buf_len, std::cout);
             // Echo
             radio_1.send(buf, buf_len);
         }
