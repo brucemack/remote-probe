@@ -92,7 +92,7 @@ unsigned int convert_bin_to_ascii(const uint8_t* bin_string, unsigned int bin_st
     return out_ptr;
 }
 
-void process_cmd(const char* cmd_line, SX1276Driver& radio) {
+void process_cmd_local(const char* cmd_line, SX1276Driver& radio) {
     // Split into 4 tokens
     char tokens[4][256] = { { 0 }, { 0 }, { 0 }, { 0 } };
     int cmd_ptr = 0;
@@ -151,6 +151,32 @@ void process_cmd(const char* cmd_line, SX1276Driver& radio) {
     }
     else {
         printf("error\n");
+    }
+}
+
+void process_cmd_remote(const uint8_t* msg, unsigned int msg_len, SX1276Driver& radio) {
+    if (msg_len >= 4) {
+        // Little endian!
+        uint16_t cmd = msg[0] | (msg[1] << 8);
+        uint16_t seq = msg[2] | (msg[3] << 8);
+
+        if (cmd == 1) {
+            // Send back a response
+            uint8_t resp[4];
+            resp[0] = 2;
+            resp[1] = 0;
+            resp[2] = msg[2];
+            resp[3] = msg[3];
+            radio.send(resp, 4);
+        } 
+        else {
+            printf("E: Unknown\n");
+            prettyHexDump(msg, msg_len, std::cout);
+        }
+    }
+    else {
+        printf("E: Unknown\n");
+        prettyHexDump(msg, msg_len, std::cout);
     }
 }
 
@@ -268,24 +294,18 @@ int main(int, const char**) {
         short rssi = 0;
 
         if (radio_0.popReceiveIfNotEmpty(&rssi, buf, &buf_len)) {
-            
             //log.info("Radio 0 got %d", buf_len);
-            //prettyHexDump(buf, buf_len, std::cout);
-
             char ascii_buf[LARGEST_PAYLOAD * 2 + 1];
             int ascii_buf_len = convert_bin_to_ascii(buf, buf_len, 
                 ascii_buf, LARGEST_PAYLOAD * 2 + 1);
-
             printf("receive %d %s\n", rssi, ascii_buf);
         }
 
         // TEMP
 
         if (radio_1.popReceiveIfNotEmpty(0, buf, &buf_len)) {
-            //log.info("Radio 1 got %d", buf_len);
-            //prettyHexDump(buf, buf_len, std::cout);
-            // Echo
-            radio_1.send(buf, buf_len);
+            //log.info("Radio 1 got %d %d", buf_len, (int)buf[0]);
+            process_cmd_remote(buf, buf_len, radio_1);
         }
 
         // ----- Handle console input activity -----
@@ -297,7 +317,7 @@ int main(int, const char**) {
                 if (local_echo)
                     printf("\n");
                 // Process the command
-                process_cmd(cmd_line, radio_0);
+                process_cmd_local(cmd_line, radio_0);
                 // Clear
                 cmd_line[0] = 0;
                 cmd_line_len = 0;
