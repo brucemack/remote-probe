@@ -20,6 +20,8 @@
 
 using namespace kc1fsz;
 
+#define LARGEST_PAYLOAD (120)
+
 const uint LED_PIN = 25;
 
 static int int_pin_0 = 0;
@@ -35,10 +37,12 @@ void gpio_callback(uint gpio, uint32_t events) {
 }
 
 unsigned int convert_ascii_to_bin(const char* ascii_string, uint8_t* bin_string, unsigned int bin_string_len) {
+
     unsigned int in_ptr = 0;
     unsigned int out_ptr = 0;
     uint8_t last_nibble = 0;
     char c = 0;
+
     while ((c = ascii_string[in_ptr++]) != 0) {
         if (out_ptr < bin_string_len) {
             // Convert ASCII character to binary nibble
@@ -59,12 +63,32 @@ unsigned int convert_ascii_to_bin(const char* ascii_string, uint8_t* bin_string,
             last_nibble = nibble;
         }
     }
+
     return out_ptr;
 }
 
 unsigned int convert_bin_to_ascii(const uint8_t* bin_string, unsigned int bin_string_len, 
     char* ascii_string, unsigned int ascii_string_len) {
-    return 0;
+
+    unsigned int in_ptr = 0;
+    unsigned int out_ptr = 0;
+    const char hex_tab[16] = { '0', '1', '2', '3', '4', '5', '6', '7',
+                               '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+
+    for (unsigned in_ptr = 0; in_ptr < bin_string_len; in_ptr++) {
+        uint8_t high_nibble = (bin_string[in_ptr] >> 4) & 0b1111;
+        uint8_t low_nibble = bin_string[in_ptr] & 0b1111;
+
+        // Always leaving space for the null
+        if (out_ptr < (ascii_string_len - 1)) 
+            ascii_string[out_ptr++] = hex_tab[high_nibble];
+        if (out_ptr < (ascii_string_len - 1)) 
+            ascii_string[out_ptr++] = hex_tab[low_nibble];
+    }   
+
+    ascii_string[out_ptr++] = 0;
+
+    return out_ptr;
 }
 
 void process_cmd(const char* cmd_line, SX1276Driver& radio) {
@@ -95,8 +119,8 @@ void process_cmd(const char* cmd_line, SX1276Driver& radio) {
     //printf("\n[%s] [%s] [%s] [%s]\n", tokens[0], tokens[1], tokens[2], tokens[3]);
 
     if (strcmp(tokens[0], "@send") == 0) {
-        uint8_t data[68];
-        unsigned int data_len = convert_ascii_to_bin(tokens[1], data, 68);
+        uint8_t data[LARGEST_PAYLOAD];
+        unsigned int data_len = convert_ascii_to_bin(tokens[1], data, LARGEST_PAYLOAD);
         if (data_len > 0) {
             if (radio.send(data, data_len)) 
                 printf("$sendok\n");
@@ -111,7 +135,7 @@ void process_cmd(const char* cmd_line, SX1276Driver& radio) {
         printf("$pong\n");
     }
     else {
-        printf("$error");
+        printf("$error\n");
     }
 }
 
@@ -222,24 +246,40 @@ int main(int, const char**) {
             radio_1.event_tick();
         }
 
-        // Check for receive activity on both radios
-        uint8_t buf[256];
-        unsigned int buf_len = 256;
-        if (radio_0.popReceiveIfNotEmpty(0, buf, &buf_len)) {
-            log.info("Radio 0 got %d", buf_len);
-            prettyHexDump(buf, buf_len, std::cout);
+        // ----- Handle radio receive activity -----
+
+        uint8_t buf[LARGEST_PAYLOAD];
+        unsigned int buf_len = LARGEST_PAYLOAD;
+        short rssi = 0;
+
+        if (radio_0.popReceiveIfNotEmpty(&rssi, buf, &buf_len)) {
+            
+            //log.info("Radio 0 got %d", buf_len);
+            //prettyHexDump(buf, buf_len, std::cout);
+
+            char ascii_buf[LARGEST_PAYLOAD * 2 + 1];
+            int ascii_buf_len = convert_bin_to_ascii(buf, buf_len, 
+                ascii_buf, LARGEST_PAYLOAD * 2 + 1);
+
+            printf("$receive %d %s\n", rssi, ascii_buf);
         }
+
+        // TEMP
+
         if (radio_1.popReceiveIfNotEmpty(0, buf, &buf_len)) {
             log.info("Radio 1 got %d", buf_len);
             prettyHexDump(buf, buf_len, std::cout);
+            // Echo
+            radio_1.send(buf, buf_len);
         }
 
-        // ----- Console Input Activity -----
+        // ----- Handle console input activity -----
 
         int c = stdio_getchar_timeout_us(0);
         if (c != PICO_ERROR_TIMEOUT && c != 0) {
             // Look for EOL \n
             if (c == 13) {
+                printf("\n");
                 // Process the command
                 process_cmd(cmd_line, radio_0);
                 // Clear
