@@ -28,6 +28,7 @@ static int int_pin_0 = 0;
 static int int_pin_1 = 0;
 static volatile bool int_flag_0 = false;
 static volatile bool int_flag_1 = false;
+static bool local_echo = false;
 
 void gpio_callback(uint gpio, uint32_t events) {
     if (gpio == int_pin_0)
@@ -116,24 +117,32 @@ void process_cmd(const char* cmd_line, SX1276Driver& radio) {
         if (token_ptr > 0)
             tokens[token++][token_ptr] = 0;
 
-    if (strcmp(tokens[0], "@send") == 0) {
+    if (strcmp(tokens[0], "send") == 0) {
         uint8_t data[LARGEST_PAYLOAD];
         unsigned int data_len = convert_ascii_to_bin(tokens[1], data, LARGEST_PAYLOAD);
         if (data_len > 0) {
             if (radio.send(data, data_len)) 
-                printf("$sendok\n");
+                printf("ok\n");
             else 
-                printf("$sendfail\n");
+                printf("fail\n");
         }
         else {
-            printf("$error\n");
+            printf("error\n");
         }
     }
-    else if (strcmp(tokens[0], "@ping") == 0) {
-        printf("$pong\n");
+    else if (strcmp(tokens[0], "ping") == 0) {
+        printf("ok\n");
+    }
+    else if (strcmp(tokens[0], "echoon") == 0) {
+        local_echo = true;
+        printf("ok\n");
+    }
+    else if (strcmp(tokens[0], "echooff") == 0) {
+        local_echo = false;
+        printf("ok\n");
     }
     else {
-        printf("$error\n");
+        printf("error\n");
     }
 }
 
@@ -259,7 +268,7 @@ int main(int, const char**) {
             int ascii_buf_len = convert_bin_to_ascii(buf, buf_len, 
                 ascii_buf, LARGEST_PAYLOAD * 2 + 1);
 
-            printf("$receive %d %s\n", rssi, ascii_buf);
+            printf("receive %d %s\n", rssi, ascii_buf);
         }
 
         // TEMP
@@ -277,7 +286,8 @@ int main(int, const char**) {
         if (c != PICO_ERROR_TIMEOUT && c != 0) {
             // Look for EOL \n
             if (c == 13) {
-                printf("\n");
+                if (local_echo)
+                    printf("\n");
                 // Process the command
                 process_cmd(cmd_line, radio_0);
                 // Clear
@@ -288,20 +298,22 @@ int main(int, const char**) {
             else if (c == 8) {
                 if (cmd_line_len > 0) {
                     cmd_line[--cmd_line_len] = 0;
-                    printf("%c %c", 8, 8);
+                    if (local_echo)
+                        printf("%c %c", 8, 8);
                 }
             } 
             // All other input added to buffer
             else {
                 // Echo
-                printf("%c", c);
+                if (local_echo)
+                    printf("%c", c);
                 // Accumulate
                 cmd_line[cmd_line_len++] = (char)c;
                 cmd_line[cmd_line_len] = 0;
             }
             // Look for overflow case
             if (cmd_line_len == 256) {
-                printf("@error\n");
+                printf("error\n");
                 cmd_line_len = 0;
             }
         }
