@@ -42,9 +42,14 @@ while True:
             print("Sending data")
             c = c + 1
             long2 = bytearray()
+            # Command
             n = 1
             long2.extend(n.to_bytes(2, byteorder='little'))
+            # Seq
             n = c
+            long2.extend(n.to_bytes(2, byteorder='little'))
+            # Offset
+            n = 0
             long2.extend(n.to_bytes(2, byteorder='little'))
             long2.extend(long)
             cmd = "send " + binary_to_hex(long2) + "\r"

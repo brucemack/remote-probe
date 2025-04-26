@@ -18,6 +18,8 @@
 #include "kc1fsz-tools/rp2040/PicoPollTimer.h"
 #include "kc1fsz-tools/rp2040/SX1276Driver.h"
 
+#include "main-remote.h"
+
 using namespace kc1fsz;
 
 #define LARGEST_PAYLOAD (120)
@@ -154,32 +156,6 @@ void process_cmd_local(const char* cmd_line, SX1276Driver& radio) {
     }
 }
 
-void process_cmd_remote(const uint8_t* msg, unsigned int msg_len, SX1276Driver& radio) {
-    if (msg_len >= 4) {
-        // Little endian!
-        uint16_t cmd = msg[0] | (msg[1] << 8);
-        uint16_t seq = msg[2] | (msg[3] << 8);
-
-        if (cmd == 1) {
-            // Send back a response
-            uint8_t resp[4];
-            resp[0] = 2;
-            resp[1] = 0;
-            resp[2] = msg[2];
-            resp[3] = msg[3];
-            radio.send(resp, 4);
-        } 
-        else {
-            printf("E: Unknown\n");
-            prettyHexDump(msg, msg_len, std::cout);
-        }
-    }
-    else {
-        printf("E: Unknown\n");
-        prettyHexDump(msg, msg_len, std::cout);
-    }
-}
-
 int main(int, const char**) {
 
     stdio_init_all();
@@ -306,7 +282,7 @@ int main(int, const char**) {
 
         if (radio_1.popReceiveIfNotEmpty(0, buf, &buf_len)) {
             //log.info("Radio 1 got %d %d", buf_len, (int)buf[0]);
-            process_cmd_remote(buf, buf_len, radio_1);
+            process_cmd_remote(buf, buf_len, log, radio_1);
         }
 
         // ----- Handle console input activity -----
