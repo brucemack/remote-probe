@@ -67,11 +67,15 @@ Commands (all \n terminated)
 
 * @configure - For configuring radio
 * @status - For getting status 
+
 * @send xxxxx (data in base-64 format)
 * @ping 
 
-Statuses (all \n terminated)
+Responses (all \n terminated)
 
+* $sendok
+* $sendfail
+* $error
 * $status l ccc mmmm (link status, send capacity, message)
 * $receive ssss rrrr xxxxx (ssss=snr, rrrr=rssi, xxxx data in base-64 format)
 * $send-clear When send buffer transitions to zero.

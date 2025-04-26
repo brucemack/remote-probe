@@ -34,6 +34,39 @@ void gpio_callback(uint gpio, uint32_t events) {
         int_flag_1 = true;
 }
 
+unsigned int convert_ascii_to_bin(const char* ascii_string, uint8_t* bin_string, unsigned int bin_string_len) {
+    unsigned int in_ptr = 0;
+    unsigned int out_ptr = 0;
+    uint8_t last_nibble = 0;
+    char c = 0;
+    while ((c = ascii_string[in_ptr++]) != 0) {
+        if (out_ptr < bin_string_len) {
+            // Convert ASCII character to binary nibble
+            uint8_t nibble = 0;
+            if (c >= '0' && c <= '9') {
+                nibble = (int)c - (int)'0';
+            }
+            else if (c >= 'a' && c <= 'f') {
+                nibble = 10 + ((int)c - (int)'a');
+            }
+            else if (c >= 'A' && c <= 'F') {
+                nibble = 10 + ((int)c - (int)'A');
+            }
+            // Even inputs are combined with accumulator and written to output
+            if ((in_ptr & 1) == 0) 
+                bin_string[out_ptr++] = (last_nibble << 4) | (nibble & 0b1111);        
+            // Even inputs go into accumulator
+            last_nibble = nibble;
+        }
+    }
+    return out_ptr;
+}
+
+unsigned int convert_bin_to_ascii(const uint8_t* bin_string, unsigned int bin_string_len, 
+    char* ascii_string, unsigned int ascii_string_len) {
+    return 0;
+}
+
 void process_cmd(const char* cmd_line, SX1276Driver& radio) {
     // Split into 4 tokens
     char tokens[4][256] = { { 0 }, { 0 }, { 0 }, { 0 } };
@@ -59,8 +92,27 @@ void process_cmd(const char* cmd_line, SX1276Driver& radio) {
         if (token_ptr > 0)
             tokens[token++][token_ptr] = 0;
 
-    printf("\n[%s] [%s] [%s] [%s]\n", tokens[0], tokens[1], tokens[2], tokens[3]);
-    printf("$ok\n");
+    //printf("\n[%s] [%s] [%s] [%s]\n", tokens[0], tokens[1], tokens[2], tokens[3]);
+
+    if (strcmp(tokens[0], "@send") == 0) {
+        uint8_t data[68];
+        unsigned int data_len = convert_ascii_to_bin(tokens[1], data, 68);
+        if (data_len > 0) {
+            if (radio.send(data, data_len)) 
+                printf("$sendok\n");
+            else 
+                printf("$sendfail\n");
+        }
+        else {
+            printf("$error\n");
+        }
+    }
+    else if (strcmp(tokens[0], "@ping") == 0) {
+        printf("$pong\n");
+    }
+    else {
+        printf("$error");
+    }
 }
 
 int main(int, const char**) {
@@ -180,8 +232,6 @@ int main(int, const char**) {
         if (radio_1.popReceiveIfNotEmpty(0, buf, &buf_len)) {
             log.info("Radio 1 got %d", buf_len);
             prettyHexDump(buf, buf_len, std::cout);
-            // Echo
-            radio_1.send(buf, buf_len);
         }
 
         // ----- Console Input Activity -----
