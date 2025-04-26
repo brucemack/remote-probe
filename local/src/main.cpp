@@ -141,6 +141,14 @@ void process_cmd(const char* cmd_line, SX1276Driver& radio) {
         local_echo = false;
         printf("ok\n");
     }
+    else if (strcmp(tokens[0], "getstatus") == 0) {
+        printf("status ");
+        if (radio.isSendQueueEmpty())
+            printf("y");
+        else
+            printf("n");
+        printf("\n");
+    }
     else {
         printf("error\n");
     }

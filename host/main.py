@@ -9,11 +9,29 @@ def binary_to_hex(ascii_list):
     return result
 
 port = "/dev/ttyACM1"
+binfile_name = "/home/bruce/pico/hello-swd/build/blinky.bin"
 
 usb = serial.Serial(port, 115200, timeout=0.05)
 
+binfile = None
+with open(binfile_name, 'rb') as file:
+    binfile = file.read()
+print(len(binfile))
+
+
+long = bytearray()
+for i in range(0, 110):
+    long.append(65)
+long.append(66)
+
+n = 0x1234
+long2 = bytearray()
+long2.extend(n.to_bytes(2, byteorder='little'))
+long2.extend(long)
+
 usb.write("ping\r".encode("utf-8"))
-cmd = "send " + binary_to_hex("BRUCE".encode("utf-8")) + "\r"
+#cmd = "send " + binary_to_hex("BRUCE".encode("utf-8")) + "\r"
+cmd = "send " + binary_to_hex(long2) + "\r"
 usb.write(cmd.encode("utf-8"))
 
 while True:
