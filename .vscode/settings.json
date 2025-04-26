@@ -1,0 +1,6 @@
+{
+    "files.exclude": {
+        "local/build": true,
+        "remote/build": true
+    }
+}

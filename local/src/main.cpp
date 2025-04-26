@@ -34,6 +34,35 @@ void gpio_callback(uint gpio, uint32_t events) {
         int_flag_1 = true;
 }
 
+void process_cmd(const char* cmd_line, SX1276Driver& radio) {
+    // Split into 4 tokens
+    char tokens[4][256] = { { 0 }, { 0 }, { 0 }, { 0 } };
+    int cmd_ptr = 0;
+    int token = 0;
+    int token_ptr = 0;
+    while (cmd_line[cmd_ptr] != 0) {
+        if (token < 4 && token_ptr < 255) {
+            if (cmd_line[cmd_ptr] == ' ') {
+                if (token_ptr > 0) {
+                    tokens[token++][token_ptr] = 0;
+                    token_ptr = 0;
+                }
+            } 
+            else
+                tokens[token][token_ptr++] = cmd_line[cmd_ptr];
+
+        }
+        cmd_ptr++;
+    }
+    // Null terminate the last token
+    if (token < 4 && token_ptr < 255)
+        if (token_ptr > 0)
+            tokens[token++][token_ptr] = 0;
+
+    printf("\n[%s] [%s] [%s] [%s]\n", tokens[0], tokens[1], tokens[2], tokens[3]);
+    printf("$ok\n");
+}
+
 int main(int, const char**) {
 
     stdio_init_all();
@@ -112,7 +141,10 @@ int main(int, const char**) {
     SX1276Driver radio_1(log, clock, reset_pin_1, spi_cs_pin_1, spi1);
 
     // Start things by sending a message
-    radio_0.send((const uint8_t*)"HELLO IZZY!", 10);
+    //radio_0.send((const uint8_t*)"HELLO IZZY!", 10);
+
+    char cmd_line[256] = { 0 };
+    int cmd_line_len = 0;
 
     while (true) {        
 
@@ -155,8 +187,35 @@ int main(int, const char**) {
         // ----- Console Input Activity -----
 
         int c = stdio_getchar_timeout_us(0);
-        if (c != PICO_ERROR_TIMEOUT) {
-            printf("Got %d\n", c);
+        if (c != PICO_ERROR_TIMEOUT && c != 0) {
+            // Look for EOL \n
+            if (c == 13) {
+                // Process the command
+                process_cmd(cmd_line, radio_0);
+                // Clear
+                cmd_line[0] = 0;
+                cmd_line_len = 0;
+            }
+            // Convenience support for backspace
+            else if (c == 8) {
+                if (cmd_line_len > 0) {
+                    cmd_line[--cmd_line_len] = 0;
+                    printf("%c %c", 8, 8);
+                }
+            } 
+            // All other input added to buffer
+            else {
+                // Echo
+                printf("%c", c);
+                // Accumulate
+                cmd_line[cmd_line_len++] = (char)c;
+                cmd_line[cmd_line_len] = 0;
+            }
+            // Look for overflow case
+            if (cmd_line_len == 256) {
+                printf("@error\n");
+                cmd_line_len = 0;
+            }
         }
     }
 }
