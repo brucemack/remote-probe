@@ -55,3 +55,24 @@ WARS Radio Board 2022-04 Hookup (J1)
 * 14: GND
 * 16: GND
 
+Notes
+=====
+
+* Read lines from STDIN
+        - Parse command, build packet for LoRa
+* Listen for inbound LoRa messages
+        - Convert to text and show on STDOUT
+
+Commands (all \n terminated)
+
+* @configure - For configuring radio
+* @status - For getting status 
+* @send xxxxx (data in base-64 format)
+* @ping 
+
+Statuses (all \n terminated)
+
+* $status l ccc mmmm (link status, send capacity, message)
+* $receive ssss rrrr xxxxx (ssss=snr, rrrr=rssi, xxxx data in base-64 format)
+* $send-clear When send buffer transitions to zero.
+* $pong
