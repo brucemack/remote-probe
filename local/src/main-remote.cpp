@@ -24,16 +24,40 @@ void process_cmd_remote(const uint8_t* msg, unsigned int msg_len, Log& log, SX12
         uint16_t cmd = msg[0] | (msg[1] << 8);
         uint16_t seq = msg[2] | (msg[3] << 8);
 
-        // Workarea update
-
+        // Init
         if (cmd == 1) {
+            uint8_t resp[5];
+            resp[0] = 1;
+            resp[1] = 0;
+            resp[2] = msg[2];
+            resp[3] = msg[3];
+            resp[4] = 0;
+            radio.send(resp, 5);
+            return;
+        }
+
+        // Reset
+        else if (cmd == 2) {
+            uint8_t resp[5];
+            resp[0] = 2;
+            resp[1] = 0;
+            resp[2] = msg[2];
+            resp[3] = msg[3];
+            resp[4] = 0;
+            radio.send(resp, 5);
+            return;
+        }
+
+        // Workarea update
+        else if (cmd == 3) {
+
             uint16_t offset = msg[4] | (msg[5] << 8);
             uint16_t size = msg_len - 6;
 
             // Sanity check
             if ((offset + size) > workareaSize) {
                 uint8_t resp[5];
-                resp[0] = 2;
+                resp[0] = 3;
                 resp[1] = 0;
                 resp[2] = msg[2];
                 resp[3] = msg[3];
@@ -49,15 +73,16 @@ void process_cmd_remote(const uint8_t* msg, unsigned int msg_len, Log& log, SX12
 
             // Send back a response
             uint8_t resp[5];
-            resp[0] = 2;
+            resp[0] = 3;
             resp[1] = 0;
             resp[2] = msg[2];
             resp[3] = msg[3];
             resp[4] = 0;
             radio.send(resp, 5);
         } 
+
         // Flash
-        else if (cmd == 3) {
+        else if (cmd == 4) {
 
             uint32_t offset = msg[4] | (msg[5] << 8) | (msg[6] << 16) | (msg[7] << 24);
             uint16_t size = msg[8] | (msg[9] << 8);          
