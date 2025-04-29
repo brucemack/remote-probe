@@ -87,6 +87,8 @@ void process_cmd_remote(const uint8_t* msg, unsigned int msg_len, Log& log, SX12
             uint32_t offset = msg[4] | (msg[5] << 8) | (msg[6] << 16) | (msg[7] << 24);
             uint16_t size = msg[8] | (msg[9] << 8);          
 
+            log.info("Flash seq %d, off %d, sz %d", (int)seq, (int)offset, (int)size);
+
             // Sanity check
             if (size > workareaSize) {
                 uint8_t resp[5];
@@ -98,8 +100,6 @@ void process_cmd_remote(const uint8_t* msg, unsigned int msg_len, Log& log, SX12
                 radio.send(resp, 5);
                 return;
             }
-
-            log.info("Flash seq %d, off %08X, sz %08X", (int)seq, offset, (unsigned int)size);
 
             // The actual copy
             flash(workarea, offset, size);

@@ -2,6 +2,14 @@ import serial
 import time 
 import math 
 
+# Takes a binary array and creates a string of the corresponding ascii hex 
+# characters (two characters per byte) with hex in upper case.
+def binary_to_hex(ascii_list):
+    result = ""
+    for c in ascii_list:
+        result = result + "{:02x}".format(c).upper()
+    return result
+
 class Task:
     def __init__(self, id: int):
         self.id = id
@@ -24,7 +32,7 @@ class InitTask(Task):
         long2.extend(n.to_bytes(2, byteorder='little'))
         # Command ID
         long2.extend(self.id.to_bytes(2, byteorder='little'))
-        return "send " + binary_to_hex(long2) + "\r"
+        return binary_to_hex(long2)
     def get_ack(self):
         long2 = bytearray()
         # Command code
@@ -32,7 +40,10 @@ class InitTask(Task):
         long2.extend(n.to_bytes(2, byteorder='little'))
         # Command ID
         long2.extend(self.id.to_bytes(2, byteorder='little'))
-        return "receive " + binary_to_hex(long2) + "\r"
+        # Status
+        st = 0
+        long2.extend(st.to_bytes(1, byteorder='little'))
+        return binary_to_hex(long2)
 
 class ResetTask(Task):
     def __init__(self, id: int):
@@ -46,7 +57,7 @@ class ResetTask(Task):
         long2.extend(n.to_bytes(2, byteorder='little'))
         # Command ID
         long2.extend(self.id.to_bytes(2, byteorder='little'))
-        return "send " + binary_to_hex(long2) + "\r"
+        return binary_to_hex(long2)
     def get_ack(self):
         long2 = bytearray()
         # Command code
@@ -54,15 +65,18 @@ class ResetTask(Task):
         long2.extend(n.to_bytes(2, byteorder='little'))
         # Command ID
         long2.extend(self.id.to_bytes(2, byteorder='little'))
-        return "receive " + binary_to_hex(long2) + "\r"
+        # Status
+        st = 0
+        long2.extend(st.to_bytes(1, byteorder='little'))
+        return binary_to_hex(long2)
 
 class WriteWorkareaTask(Task):
-    def __init__(self, id: int, ptr: int, data):
+    def __init__(self, id: int, ptr: int, bin_data):
         super().__init__(id)
         self.ptr = ptr 
-        self.data = data
+        self.bin_data = bin_data
     def __str__(self):
-        return "WriteWorkarea " + str(self.id) + ", " + str(self.ptr) + ", " + self.data
+        return "WriteWorkarea " + str(self.id) + ", " + str(self.ptr)
     def get_cmd(self):
         long2 = bytearray()
         # Command code
@@ -73,8 +87,8 @@ class WriteWorkareaTask(Task):
         # Offset into workarea
         long2.extend(self.ptr.to_bytes(2, byteorder='little'))
         # The data itself
-        long2.extend(self.data)
-        return "send " + binary_to_hex(long2) + "\r"
+        long2.extend(self.bin_data)
+        return binary_to_hex(long2)
     def get_ack(self):
         long2 = bytearray()
         # Command code
@@ -82,7 +96,10 @@ class WriteWorkareaTask(Task):
         long2.extend(n.to_bytes(2, byteorder='little'))
         # Command ID
         long2.extend(self.id.to_bytes(2, byteorder='little'))
-        return "receive " + binary_to_hex(long2) + "\r"
+        # Status
+        st = 0
+        long2.extend(st.to_bytes(1, byteorder='little'))
+        return binary_to_hex(long2)
 
 class FlashTask(Task):
     def __init__(self, id: int, ptr: int, size: int):
@@ -98,11 +115,11 @@ class FlashTask(Task):
         long2.extend(n.to_bytes(2, byteorder='little'))
         # Command ID
         long2.extend(self.id.to_bytes(2, byteorder='little'))
-        # Offset into workarea
-        long2.extend(self.ptr.to_bytes(2, byteorder='little'))
+        # Offset into flash
+        long2.extend(self.ptr.to_bytes(4, byteorder='little'))
         # Size in workarea
         long2.extend(self.size.to_bytes(2, byteorder='little'))
-        return "send " + binary_to_hex(long2) + "\r"
+        return binary_to_hex(long2)
     def get_ack(self):
         long2 = bytearray()
         # Command code
@@ -110,7 +127,10 @@ class FlashTask(Task):
         long2.extend(n.to_bytes(2, byteorder='little'))
         # Command ID
         long2.extend(self.id.to_bytes(2, byteorder='little'))
-        return "receive " + binary_to_hex(long2) + "\r"
+        # Status
+        st = 0
+        long2.extend(st.to_bytes(1, byteorder='little'))
+        return binary_to_hex(long2)
 
 # Takes a list and creates a list of list using the specified 
 # chunk size. The last list may be smaller than the rest.
@@ -122,14 +142,6 @@ def blow_chunks(in_list, chunk_size):
         this_chunk_size = min(chunk_size, len(in_list) - ptr)
         result.append(in_list[ptr:ptr + this_chunk_size])
         ptr = ptr + this_chunk_size
-    return result
-
-# Takes a binary array and creates a 
-# string of the corresponding ascii hex characters (two characters per byte)
-def binary_to_hex(ascii_list):
-    result = ""
-    for c in ascii_list:
-        result = result + "{:02x}".format(c)
     return result
 
 # Takes a .bin filename and makes the tasks that need to be performed
@@ -150,9 +162,9 @@ def make_tasks(fn: str, start_id: int):
         for page in blow_chunks(file.read(), page_size):
             workarea_ptr = 0
             # Create a set of updates to the workarea
-            for chunk in blow_chunks(page, chunk_size):
-                tasks.append(WriteWorkareaTask(task_id, workarea_ptr, binary_to_hex(chunk)))
-                workarea_ptr = workarea_ptr + len(chunk)
+            for bin_chunk in blow_chunks(page, chunk_size):
+                tasks.append(WriteWorkareaTask(task_id, workarea_ptr, bin_chunk))
+                workarea_ptr = workarea_ptr + len(bin_chunk)
                 task_id = task_id + 1
             # Create a flash command for the entire workarea
             tasks.append(FlashTask(task_id, flash_ptr, page_size))
@@ -164,15 +176,15 @@ def make_tasks(fn: str, start_id: int):
 
     return tasks
 
-#port = "/dev/ttyACM1"
-port = "/dev/tty.Bluetooth-Incoming-Port"
-#binfile_name = "/home/bruce/pico/hello-swd/build/blinky.bin"
-binfile_name = "./blinky.bin"
+port = "/dev/ttyACM1"
+#port = "/dev/tty.Bluetooth-Incoming-Port"
+binfile_name = "/home/bruce/pico/hello-swd/build/blinky.bin"
+#binfile_name = "./blinky.bin"
 
 tasks = make_tasks(binfile_name, 1)
 
-for task in tasks:
-    print(task)
+#for task in tasks:
+#    print(task)
 
 usb = serial.Serial(port, 115200, timeout=0.05)
 
@@ -180,16 +192,11 @@ usb = serial.Serial(port, 115200, timeout=0.05)
 #
 # 1: Ready to start a task
 # 2: Waiting for task completion
-# 3: All done
-# 4: Failed 
 
 state = 1
-c = 0
 last_start_ms = 0
-working_task = None
 retry_count = 0
 max_retry_count = 3
-cmd_id = 0
 
 while True:
     
@@ -205,7 +212,9 @@ while True:
         if state == 1:
             print("Starting Task:", tasks[0], tasks[0].get_cmd())
             # Launch the command
-            usb.write(tasks[0].get_cmd().encode("utf-8"))
+            cmd = "send " + tasks[0].get_cmd() + "\r"
+            #print("Sending:", cmd)
+            usb.write(cmd.encode("utf-8"))
             last_start_ms = now
             retry_count = 0
             state = 2
@@ -215,17 +224,29 @@ while True:
             # This is a line-oriented interface
             rec_data = usb.readline().decode("utf-8").strip()
             if state == 2:
-                if rec_data == "ok":
+                if rec_data.startswith("I:"):
+                    pass
+                elif rec_data == "ok":
                     pass
                 # Check to see if this is the ACK we've been
                 # waiting for. If so, pop and move forward. 
-                elif tasks[0].is_ack(rec_data):
-                    tasks.pop(0)
-                    state = 1
+                elif rec_data.startswith("receive "):
+                    # Split by space delimiter
+                    tokens = rec_data.split(" ")
+                    if len(tokens) == 3:
+                        if tasks[0].is_ack(tokens[2]):
+                            tasks.pop(0)
+                            state = 1
+                            print("Good ACK")
+                        else:
+                            print("Unexpected data [0]:", tokens[2])
+                            print("Wanted:", tasks[0].get_ack())
+                    else:
+                        print("Unexpected message [1]:", rec_data)
                 else:
-                    print("Unexpected message:", rec_data)
+                    print("Unexpected message [2]:", rec_data)
             else:
-                print("Unexpected message:", rec_data)
+                print("Unexpected message [3]:", rec_data)
 
         # Handle timer-based events
         if state == 2:
@@ -233,7 +254,9 @@ while True:
                 if retry_count < max_retry_count:
                     print("Response timeout, retrying")
                     # Launch the command again
-                    usb.write(tasks[0].get_cmd().encode("utf-8"))
+                    cmd = "send " + tasks[0].get_cmd() + "\r"
+                    print("Sending:", cmd)
+                    usb.write(cmd.encode("utf-8"))
                     last_start_ms = now
                     retry_count = retry_count + 1
                 else:
