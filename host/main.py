@@ -7,6 +7,10 @@ class Task:
         self.id = id
     def get_cmd(self):
         return None
+    def is_ack(self, msg):
+        return msg == self.get_ack()
+    def get_ack(self):
+        return ""
 
 class InitTask(Task):
     def __init__(self, id: int):
@@ -21,6 +25,14 @@ class InitTask(Task):
         # Command ID
         long2.extend(self.id.to_bytes(2, byteorder='little'))
         return "send " + binary_to_hex(long2) + "\r"
+    def get_ack(self):
+        long2 = bytearray()
+        # Command code
+        n = 1
+        long2.extend(n.to_bytes(2, byteorder='little'))
+        # Command ID
+        long2.extend(self.id.to_bytes(2, byteorder='little'))
+        return "receive " + binary_to_hex(long2) + "\r"
 
 class ResetTask(Task):
     def __init__(self, id: int):
@@ -35,6 +47,14 @@ class ResetTask(Task):
         # Command ID
         long2.extend(self.id.to_bytes(2, byteorder='little'))
         return "send " + binary_to_hex(long2) + "\r"
+    def get_ack(self):
+        long2 = bytearray()
+        # Command code
+        n = 2
+        long2.extend(n.to_bytes(2, byteorder='little'))
+        # Command ID
+        long2.extend(self.id.to_bytes(2, byteorder='little'))
+        return "receive " + binary_to_hex(long2) + "\r"
 
 class WriteWorkareaTask(Task):
     def __init__(self, id: int, ptr: int, data):
@@ -55,6 +75,14 @@ class WriteWorkareaTask(Task):
         # The data itself
         long2.extend(self.data)
         return "send " + binary_to_hex(long2) + "\r"
+    def get_ack(self):
+        long2 = bytearray()
+        # Command code
+        n = 3
+        long2.extend(n.to_bytes(2, byteorder='little'))
+        # Command ID
+        long2.extend(self.id.to_bytes(2, byteorder='little'))
+        return "receive " + binary_to_hex(long2) + "\r"
 
 class FlashTask(Task):
     def __init__(self, id: int, ptr: int, size: int):
@@ -75,6 +103,14 @@ class FlashTask(Task):
         # Size in workarea
         long2.extend(self.size.to_bytes(2, byteorder='little'))
         return "send " + binary_to_hex(long2) + "\r"
+    def get_ack(self):
+        long2 = bytearray()
+        # Command code
+        n = 4
+        long2.extend(n.to_bytes(2, byteorder='little'))
+        # Command ID
+        long2.extend(self.id.to_bytes(2, byteorder='little'))
+        return "receive " + binary_to_hex(long2) + "\r"
 
 # Takes a list and creates a list of list using the specified 
 # chunk size. The last list may be smaller than the rest.
@@ -181,12 +217,13 @@ while True:
             if state == 2:
                 if rec_data == "ok":
                     pass
-                elif rec_data.startswith("receive"):
-                    # Check to see if this is the ACK we've been
-                    # waiting for. If so, pop and move forward. 
-                    if tasks[0].is_ack(rec_data):
-                        tasks.pop(0)
-                        state = 1
+                # Check to see if this is the ACK we've been
+                # waiting for. If so, pop and move forward. 
+                elif tasks[0].is_ack(rec_data):
+                    tasks.pop(0)
+                    state = 1
+                else:
+                    print("Unexpected message:", rec_data)
             else:
                 print("Unexpected message:", rec_data)
 
