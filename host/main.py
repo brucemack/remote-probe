@@ -128,15 +128,15 @@ def make_tasks(fn: str, start_id: int):
 
     return tasks
 
-port = "/dev/ttyACM1"
-binfile_name = "/home/bruce/pico/hello-swd/build/blinky.bin"
+#port = "/dev/ttyACM1"
+port = "/dev/tty.Bluetooth-Incoming-Port"
+#binfile_name = "/home/bruce/pico/hello-swd/build/blinky.bin"
+binfile_name = "./blinky.bin"
 
 tasks = make_tasks(binfile_name, 1)
 
 for task in tasks:
     print(task)
-
-quit()
 
 usb = serial.Serial(port, 115200, timeout=0.05)
 
@@ -159,43 +159,47 @@ while True:
     
     now = time.time() * 1000
 
+    # Finished?
+    if len(tasks) == 0:
+        break
+
+    # Handle any outbound things we need
     if usb.is_open:
-        # Handle any outbound things we need
+        # Ready to start a task
         if state == 1:
-            if len(tasks) == 0:
-                state = 3
-            else:
-                working_task = tasks.pop(0)
-                cmd_id = cmd_id + 1
-                print(cmd_id, working_task)
-                # Launch the command
-                usb.write(working_task.get_cmd(cmd_id).encode("utf-8"))
-                last_start_ms = now
-                retry_count = 0
-                state = 2
+            print("Starting Task:", tasks[0], tasks[0].get_cmd())
+            # Launch the command
+            usb.write(tasks[0].get_cmd().encode("utf-8"))
+            last_start_ms = now
+            retry_count = 0
+            state = 2
 
         # Handle any inbound things
         if usb.in_waiting > 0:
             # This is a line-oriented interface
             rec_data = usb.readline().decode("utf-8").strip()
-            if rec_data == "ok":
-                pass
-            elif rec_data.startswith("receive"):                
-                if state == 5:
-                    state = 1
+            if state == 2:
+                if rec_data == "ok":
+                    pass
+                elif rec_data.startswith("receive"):
+                    # Check to see if this is the ACK we've been
+                    # waiting for. If so, pop and move forward. 
+                    if tasks[0].is_ack(rec_data):
+                        tasks.pop(0)
+                        state = 1
             else:
-                print("LOG:", rec_data)
+                print("Unexpected message:", rec_data)
 
-        # Handle timeer-based events
+        # Handle timer-based events
         if state == 2:
             if (now - last_start_ms) > 1000:
                 if retry_count < max_retry_count:
                     print("Response timeout, retrying")
-                    # Launch the command
-                    usb.write(working_task.get_cmd().encode("utf-8"))
+                    # Launch the command again
+                    usb.write(tasks[0].get_cmd().encode("utf-8"))
                     last_start_ms = now
                     retry_count = retry_count + 1
                 else:
                     print("Response timeout, too many retries, failed")
-                    state = 4
+                    break
 
