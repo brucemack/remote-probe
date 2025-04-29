@@ -197,6 +197,7 @@ state = 1
 last_start_ms = 0
 retry_count = 0
 max_retry_count = 3
+original_task_count = len(tasks)
 
 while True:
     
@@ -210,7 +211,8 @@ while True:
     if usb.is_open:
         # Ready to start a task
         if state == 1:
-            print("Starting Task:", tasks[0], tasks[0].get_cmd())
+            #print("Starting Task:", tasks[0], tasks[0].get_cmd())
+            print("Remaining",int(100*len(tasks)/original_task_count),"%")
             # Launch the command
             cmd = "send " + tasks[0].get_cmd() + "\r"
             #print("Sending:", cmd)
@@ -237,7 +239,7 @@ while True:
                         if tasks[0].is_ack(tokens[2]):
                             tasks.pop(0)
                             state = 1
-                            print("Good ACK")
+                            #print("Good ACK")
                         else:
                             print("Unexpected data [0]:", tokens[2])
                             print("Wanted:", tasks[0].get_ack())
@@ -255,7 +257,7 @@ while True:
                     print("Response timeout, retrying")
                     # Launch the command again
                     cmd = "send " + tasks[0].get_cmd() + "\r"
-                    print("Sending:", cmd)
+                    #print("Sending:", cmd)
                     usb.write(cmd.encode("utf-8"))
                     last_start_ms = now
                     retry_count = retry_count + 1
