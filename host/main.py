@@ -19,6 +19,8 @@ class Task:
         return msg == self.get_ack()
     def get_ack(self):
         return ""
+    def timeout_ms(self):
+        return 1000
 
 class InitTask(Task):
     def __init__(self, id: int):
@@ -62,6 +64,31 @@ class ResetTask(Task):
         long2 = bytearray()
         # Command code
         n = 2
+        long2.extend(n.to_bytes(2, byteorder='little'))
+        # Command ID
+        long2.extend(self.id.to_bytes(2, byteorder='little'))
+        # Status
+        st = 0
+        long2.extend(st.to_bytes(1, byteorder='little'))
+        return binary_to_hex(long2)
+
+class ResetIntoDebugTask(Task):
+    def __init__(self, id: int):
+        super().__init__(id)
+    def __str__(self):
+        return "Reset " + str(self.id)
+    def get_cmd(self):
+        long2 = bytearray()
+        # Command code
+        n = 5
+        long2.extend(n.to_bytes(2, byteorder='little'))
+        # Command ID
+        long2.extend(self.id.to_bytes(2, byteorder='little'))
+        return binary_to_hex(long2)
+    def get_ack(self):
+        long2 = bytearray()
+        # Command code
+        n = 5
         long2.extend(n.to_bytes(2, byteorder='little'))
         # Command ID
         long2.extend(self.id.to_bytes(2, byteorder='little'))
@@ -131,6 +158,8 @@ class FlashTask(Task):
         st = 0
         long2.extend(st.to_bytes(1, byteorder='little'))
         return binary_to_hex(long2)
+    def timeout_ms(self):
+        return 10000
 
 # Takes a list and creates a list of list using the specified 
 # chunk size. The last list may be smaller than the rest.
@@ -154,7 +183,9 @@ def make_tasks(fn: str, start_id: int):
 
     tasks.append(InitTask(task_id))
     task_id = task_id + 1
-
+    tasks.append(ResetIntoDebugTask(task_id))
+    task_id = task_id + 1
+    
     # Create tasks to flash the binary
     with open(fn, 'rb') as file:
         flash_ptr = 0
@@ -170,7 +201,7 @@ def make_tasks(fn: str, start_id: int):
             tasks.append(FlashTask(task_id, flash_ptr, page_size))
             flash_ptr = flash_ptr + page_size
             task_id = task_id + 1
-
+    
     tasks.append(ResetTask(task_id))
     task_id = task_id + 1
 
@@ -227,7 +258,7 @@ while True:
             rec_data = usb.readline().decode("utf-8").strip()
             if state == 2:
                 if rec_data.startswith("I:"):
-                    pass
+                    print(rec_data)
                 elif rec_data == "ok":
                     pass
                 # Check to see if this is the ACK we've been
@@ -252,7 +283,7 @@ while True:
 
         # Handle timer-based events
         if state == 2:
-            if (now - last_start_ms) > 1000:
+            if (now - last_start_ms) > tasks[0].timeout_ms():
                 if retry_count < max_retry_count:
                     print("Response timeout, retrying")
                     # Launch the command again

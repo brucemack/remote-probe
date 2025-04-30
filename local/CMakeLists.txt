@@ -15,8 +15,10 @@ add_executable(main
   src/main.cpp
   src/main-remote.cpp
   kc1fsz-tools-cpp/src/Common.cpp
+  kc1fsz-tools-cpp/src/SWDUtils.cpp
   kc1fsz-tools-cpp/src/rp2040/PicoPollTimer.cpp
   kc1fsz-tools-cpp/src/rp2040/SX1276Driver.cpp
+  kc1fsz-tools-cpp/src/rp2040/SWDDriver.cpp
 )
 
 target_include_directories(main PRIVATE 

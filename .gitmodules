@@ -1,3 +1,6 @@
 [submodule "local/kc1fsz-tools-cpp"]
 	path = local/kc1fsz-tools-cpp
 	url = https://github.com/brucemack/kc1fsz-tools-cpp.git
+[submodule "remote/kc1fsz-tools-cpp"]
+	path = remote/kc1fsz-tools-cpp
+	url = https://github.com/brucemack/kc1fsz-tools-cpp.git

@@ -18,11 +18,16 @@
 #include "kc1fsz-tools/rp2040/PicoPollTimer.h"
 #include "kc1fsz-tools/rp2040/SX1276Driver.h"
 
+#include "kc1fsz-tools/rp2040/SWDDriver.h"
+#include "kc1fsz-tools/SWDUtils.h"
+
 #include "main-remote.h"
 
 using namespace kc1fsz;
 
 #define LARGEST_PAYLOAD (120)
+#define CLK_PIN (16)
+#define DIO_PIN (17)
 
 const uint LED_PIN = 25;
 
@@ -223,6 +228,15 @@ int main(int, const char**) {
     gpio_set_function(spi_miso_pin_1, GPIO_FUNC_SPI);
     spi_init(spi1, 500000);
 
+    // ----- SWD Hookup -----
+    gpio_init(CLK_PIN);
+    gpio_set_dir(CLK_PIN, GPIO_OUT);        
+    gpio_put(CLK_PIN, 0);
+    gpio_init(DIO_PIN);
+    gpio_set_dir(DIO_PIN, GPIO_OUT);        
+    gpio_put(DIO_PIN, 0);
+    SWDDriver swd(CLK_PIN, DIO_PIN);
+
     PicoClock clock;
     PicoPollTimer radio_poll;
     // Fast poll every 1ms
@@ -233,9 +247,6 @@ int main(int, const char**) {
 
     SX1276Driver radio_0(log, clock, reset_pin_0, spi_cs_pin_0, spi0);
     SX1276Driver radio_1(log, clock, reset_pin_1, spi_cs_pin_1, spi1);
-
-    // Start things by sending a message
-    //radio_0.send((const uint8_t*)"HELLO IZZY!", 10);
 
     char cmd_line[256] = { 0 };
     int cmd_line_len = 0;
@@ -282,7 +293,7 @@ int main(int, const char**) {
 
         if (radio_1.popReceiveIfNotEmpty(0, buf, &buf_len)) {
             //log.info("Radio 1 got %d %d", buf_len, (int)buf[0]);
-            process_cmd_remote(buf, buf_len, log, radio_1);
+            process_cmd_remote(buf, buf_len, log, radio_1, swd);
         }
 
         // ----- Handle console input activity -----
