@@ -27,5 +27,6 @@ target_include_directories(main PRIVATE
   #$ENV{HOME}/pico/CMSISDSP/CMSIS_6/CMSIS/Core/Include
 )
 
-pico_enable_stdio_usb(main 1)
-target_link_libraries(main pico_stdlib hardware_i2c hardware_spi)
+pico_enable_stdio_usb(main 0)
+pico_enable_stdio_uart(main 1)
+target_link_libraries(main pico_stdlib hardware_spi)

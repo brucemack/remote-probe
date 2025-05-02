@@ -15,6 +15,12 @@ Build/Run
 Hardware Setup
 ==============
 
+SWD Debug Port to Pi Debug Probe (From left to right)
+
+* Orange
+* Black
+* Yellow
+
 Radio 0 Hookup
 
 * spi_sck_pin_0 = GP2

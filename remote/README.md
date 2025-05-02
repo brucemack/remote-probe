@@ -15,6 +15,12 @@ Build/Run
 Hardware Setup
 ==============
 
+SWD Debug Port to Pi Debug Probe (From left to right)
+
+* Orange
+* Black
+* Yellow
+
 Radio 1 Hookup
 
 * spi_sck_pin_1 = GP10
@@ -25,7 +31,7 @@ Radio 1 Hookup
 * reset_pin_1 = GP14
 * int_pin_1
 
-SWD Hookup
+SWD Ouptut Hookup
 
 * CLK_PIN = GP16
 * DIO_PIN = GP17

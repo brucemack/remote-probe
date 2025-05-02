@@ -5,11 +5,8 @@
 #include <stdlib.h>
 
 #include "pico/stdlib.h"
-#include "pico/flash.h"
-#include "pico/bootrom.h"
 
 #include "hardware/gpio.h"
-#include "hardware/i2c.h"
 #include "hardware/spi.h"
 #include "hardware/sync.h"
 
@@ -40,7 +37,8 @@ static void gpio_callback(uint gpio, uint32_t events) {
 
 int main(int, const char**) {
 
-    stdio_init_all();
+    //stdio_init_all();
+    stdio_uart_init_full(uart0, 115200, 0, 1);
 
     gpio_init(LED_PIN);
     gpio_set_dir(LED_PIN, GPIO_OUT);
@@ -98,6 +96,15 @@ int main(int, const char**) {
     gpio_put(DIO_PIN, 0);
     
     SWDDriver swd(CLK_PIN, DIO_PIN);
+
+    // Force a few poll cycles to get the radio through initialization
+    radio_1.event_poll();
+    radio_1.event_tick();
+
+    if (radio_1.isRadioInitGood())
+        log.info("Radio initialized");
+    else
+        log.error("Radio failed to initialize");
 
     while (true) {        
 
