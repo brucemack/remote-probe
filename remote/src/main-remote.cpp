@@ -37,7 +37,8 @@ int do_flash(const uint8_t* data, uint32_t flash_offset, uint32_t flash_size, Lo
     return flash_and_verify(swd, flash_offset, data, flash_size);
 }
 
-void process_cmd_remote(const uint8_t* msg, unsigned int msg_len, Log& log, SX1276Driver& radio, SWDDriver& swd) {
+void process_cmd_remote(int16_t rssi, 
+    const uint8_t* msg, unsigned int msg_len, Log& log, SX1276Driver& radio, SWDDriver& swd) {
 
     if (msg_len >= 4) {
 
@@ -45,8 +46,20 @@ void process_cmd_remote(const uint8_t* msg, unsigned int msg_len, Log& log, SX12
         uint16_t cmd = msg[0] | (msg[1] << 8);
         uint16_t seq = msg[2] | (msg[3] << 8);
 
-        // Init
-        if (cmd == 1) {
+        // Ping
+        if (cmd == 0) {
+            uint8_t resp[5];
+            resp[0] = 0;
+            resp[1] = 0;
+            resp[2] = msg[2];
+            resp[3] = msg[3];
+            resp[4] = 0;
+            radio.send(resp, 5);
+            return;
+        }
+
+        // Init SWD
+        else if (cmd == 1) {
             int rc = do_init(log, swd);
             uint8_t resp[5];
             resp[0] = 1;
@@ -93,7 +106,7 @@ void process_cmd_remote(const uint8_t* msg, unsigned int msg_len, Log& log, SX12
             return;
         }
 
-        // Workarea update
+        // Workarea write
         else if (cmd == 3) {
 
             uint16_t offset = msg[4] | (msg[5] << 8);
@@ -126,7 +139,7 @@ void process_cmd_remote(const uint8_t* msg, unsigned int msg_len, Log& log, SX12
             radio.send(resp, 5);
         } 
 
-        // Flash
+        // Flash from workarea RAM -> flash
         else if (cmd == 4) {
 
             uint32_t offset = msg[4] | (msg[5] << 8) | (msg[6] << 16) | (msg[7] << 24);

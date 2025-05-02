@@ -5,11 +5,11 @@
 #include <stdlib.h>
 
 #include "pico/stdlib.h"
-#include "pico/flash.h"
-#include "pico/bootrom.h"
+//#include "pico/flash.h"
+//#include "pico/bootrom.h"
 
 #include "hardware/gpio.h"
-#include "hardware/i2c.h"
+//#include "hardware/i2c.h"
 #include "hardware/spi.h"
 #include "hardware/sync.h"
 
@@ -18,30 +18,20 @@
 #include "kc1fsz-tools/rp2040/PicoPollTimer.h"
 #include "kc1fsz-tools/rp2040/SX1276Driver.h"
 
-#include "kc1fsz-tools/rp2040/SWDDriver.h"
-#include "kc1fsz-tools/SWDUtils.h"
-
-#include "main-remote.h"
-
 using namespace kc1fsz;
 
 #define LARGEST_PAYLOAD (120)
-#define CLK_PIN (16)
-#define DIO_PIN (17)
 
 const uint LED_PIN = 25;
 
 static int int_pin_0 = 0;
-static int int_pin_1 = 0;
 static volatile bool int_flag_0 = false;
-static volatile bool int_flag_1 = false;
 static bool local_echo = false;
+static uint16_t ping_seq = 1;
 
-void gpio_callback(uint gpio, uint32_t events) {
+static void gpio_callback(uint gpio, uint32_t events) {
     if (gpio == int_pin_0)
         int_flag_0 = true;
-    else if (gpio == int_pin_1)
-        int_flag_1 = true;
 }
 
 unsigned int convert_ascii_to_bin(const char* ascii_string, uint8_t* bin_string, unsigned int bin_string_len) {
@@ -137,6 +127,18 @@ void process_cmd_local(const char* cmd_line, SX1276Driver& radio) {
             printf("error\n");
         }
     }
+    else if (strcmp(tokens[0], "pingremote") == 0) {
+        uint8_t data[LARGEST_PAYLOAD];
+        data[0] = 0;
+        data[1] = 0;
+        data[2] = ping_seq & 0xff;
+        data[3] = (ping_seq >> 8) & 0xff;
+        ping_seq++;
+        if (radio.send(data, data_len)) 
+            printf("ok\n");
+        else 
+            printf("fail\n");
+    }
     else if (strcmp(tokens[0], "ping") == 0) {
         printf("ok\n");
     }
@@ -173,6 +175,14 @@ int main(int, const char**) {
     gpio_put(LED_PIN, 0);
     sleep_ms(500);
 
+    PicoClock clock;
+    PicoPollTimer radio_poll;
+    // Fast poll every 1ms
+    radio_poll.setIntervalUs(1000);
+    Log log;
+
+    log.info("Remote Probe (Local Node)");
+
     // ----- Radio 0 Hookup 
 
     int spi_sck_pin_0 = 2;
@@ -200,53 +210,7 @@ int main(int, const char**) {
     gpio_set_function(spi_miso_pin_0, GPIO_FUNC_SPI);
     spi_init(spi0, 500000);
 
-    // ----- Radio 1 Hookup 
-
-    int spi_sck_pin_1 = 10;
-    int spi_mosi_pin_1 = 11;
-    int spi_miso_pin_1 = 12;
-    int spi_cs_pin_1 = 13;
-    int reset_pin_1 = 14;
-    int_pin_1 = 15;
-
-    gpio_init(reset_pin_1);
-    gpio_set_dir(reset_pin_1, GPIO_OUT);
-    gpio_put(reset_pin_1, 1);
-
-    gpio_init(int_pin_1);
-    gpio_set_dir(int_pin_1, GPIO_IN);
-    // First irq installs callback for all
-    gpio_set_irq_enabled(int_pin_1, GPIO_IRQ_EDGE_RISE, true);
-
-    // The CS pin is not behaving the way we want, so drive manually
-    gpio_init(spi_cs_pin_1);
-    gpio_set_dir(spi_cs_pin_1, GPIO_OUT);
-    gpio_put(spi_cs_pin_1, 1);
-
-    gpio_set_function(spi_sck_pin_1, GPIO_FUNC_SPI);
-    gpio_set_function(spi_mosi_pin_1, GPIO_FUNC_SPI);
-    gpio_set_function(spi_miso_pin_1, GPIO_FUNC_SPI);
-    spi_init(spi1, 500000);
-
-    // ----- SWD Hookup -----
-    gpio_init(CLK_PIN);
-    gpio_set_dir(CLK_PIN, GPIO_OUT);        
-    gpio_put(CLK_PIN, 0);
-    gpio_init(DIO_PIN);
-    gpio_set_dir(DIO_PIN, GPIO_OUT);        
-    gpio_put(DIO_PIN, 0);
-    SWDDriver swd(CLK_PIN, DIO_PIN);
-
-    PicoClock clock;
-    PicoPollTimer radio_poll;
-    // Fast poll every 1ms
-    radio_poll.setIntervalUs(1000);
-    Log log;
-
-    log.info("Remote Probe (Local Node)");
-
     SX1276Driver radio_0(log, clock, reset_pin_0, spi_cs_pin_0, spi0);
-    SX1276Driver radio_1(log, clock, reset_pin_1, spi_cs_pin_1, spi1);
 
     char cmd_line[256] = { 0 };
     int cmd_line_len = 0;
@@ -259,20 +223,14 @@ int main(int, const char**) {
             radio_0.event_int();
             int_flag_0 = false;
         }
-        if (int_flag_1) {
-            radio_1.event_int();
-            int_flag_1 = false;
-        }        
         restore_interrupts(int_state);
 
         // Fast poll
         radio_0.event_poll();
-        radio_1.event_poll();
 
         // Slow poll
         if (radio_poll.poll()) {
             radio_0.event_tick();
-            radio_1.event_tick();
         }
 
         // ----- Handle radio receive activity -----
@@ -282,18 +240,19 @@ int main(int, const char**) {
         short rssi = 0;
 
         if (radio_0.popReceiveIfNotEmpty(&rssi, buf, &buf_len)) {
-            //log.info("Radio 0 got %d", buf_len);
-            char ascii_buf[LARGEST_PAYLOAD * 2 + 1];
-            int ascii_buf_len = convert_bin_to_ascii(buf, buf_len, 
-                ascii_buf, LARGEST_PAYLOAD * 2 + 1);
-            printf("receive %d %s\n", rssi, ascii_buf);
-        }
-
-        // TEMP
-
-        if (radio_1.popReceiveIfNotEmpty(0, buf, &buf_len)) {
-            //log.info("Radio 1 got %d %d", buf_len, (int)buf[0]);
-            process_cmd_remote(buf, buf_len, log, radio_1, swd);
+            
+            // Look for ping response (special case)
+            if (buf[0] == 0 && buf[1] == 0) {
+                printf("pong %d\n", rssi);
+            }
+            // All other received messages are sent to 
+            // serial output in ASCII hex format.
+            else {
+                char ascii_buf[LARGEST_PAYLOAD * 2 + 1];
+                int ascii_buf_len = convert_bin_to_ascii(buf, buf_len, 
+                    ascii_buf, LARGEST_PAYLOAD * 2 + 1);
+                printf("receive %d %s\n", rssi, ascii_buf);
+            }
         }
 
         // ----- Handle console input activity -----

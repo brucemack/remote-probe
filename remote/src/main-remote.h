@@ -9,7 +9,8 @@ class Log;
 class SWDDriver;
 }
 
-void process_cmd_remote(const uint8_t* msg, unsigned int msg_len, kc1fsz::Log& log, kc1fsz::SX1276Driver& radio,
+void process_cmd_remote(int16_t rssi,
+    const uint8_t* msg, unsigned int msg_len, kc1fsz::Log& log, kc1fsz::SX1276Driver& radio,
     kc1fsz::SWDDriver& swd);
 
 #endif
