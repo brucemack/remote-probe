@@ -1,15 +1,13 @@
 /**
  * Copyright (C) Bruce MacKinnon, 2025
  */
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 #include "pico/stdlib.h"
-//#include "pico/flash.h"
-//#include "pico/bootrom.h"
 
 #include "hardware/gpio.h"
-//#include "hardware/i2c.h"
 #include "hardware/spi.h"
 #include "hardware/sync.h"
 
@@ -134,7 +132,7 @@ void process_cmd_local(const char* cmd_line, SX1276Driver& radio) {
         data[2] = ping_seq & 0xff;
         data[3] = (ping_seq >> 8) & 0xff;
         ping_seq++;
-        if (radio.send(data, data_len)) 
+        if (radio.send(data, 4)) 
             printf("ok\n");
         else 
             printf("fail\n");
